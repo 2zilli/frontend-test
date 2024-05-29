@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
+import SepoliaComponent from "./SepoliaComponent";
+import MainnetComponent from "./MainnetComponent";
 
 const Home = () => {
     const [provider, setProvider] = useState(null);
@@ -9,9 +11,8 @@ const Home = () => {
     const [networkId, setNetworkId] = useState(null);
     const [networkName, setNetworkName] = useState("");
     const [blockNumber, setBlockNumber] = useState(null);
-    const [contractData, setContractData] = useState(null);
+    const [balance, setBalance] = useState(null);
     const [connecting, setConnecting] = useState(false);
-    const [isEthereumMainnet, setIsEthereumMainnet] = useState(true);
     const [networkSwitchInProgress, setNetworkSwitchInProgress] =
         useState(false);
 
@@ -24,6 +25,9 @@ const Home = () => {
 
             // Add event listener for network changes
             window.ethereum.on("chainChanged", handleNetworkChange);
+
+            // Add event listener for account changes
+            window.ethereum.on("accountsChanged", handleAccountsChanged);
         } else {
             console.log("No Ethereum provider detected");
             alert(
@@ -32,11 +36,15 @@ const Home = () => {
         }
 
         return () => {
-            // Cleanup event listener on component unmount
+            // Cleanup event listeners on component unmount
             if (window.ethereum) {
                 window.ethereum.removeListener(
                     "chainChanged",
                     handleNetworkChange
+                );
+                window.ethereum.removeListener(
+                    "accountsChanged",
+                    handleAccountsChanged
                 );
             }
         };
@@ -49,6 +57,18 @@ const Home = () => {
         checkConnection(newProvider);
     };
 
+    const handleAccountsChanged = (accounts) => {
+        if (accounts.length > 0) {
+            console.log("Account changed, updating information...");
+            checkConnection(provider);
+        } else {
+            console.log("No accounts found");
+            setUserAddress("");
+            setSigner(null);
+            setBalance(null);
+        }
+    };
+
     const checkConnection = async (provider) => {
         try {
             console.log("Checking connection...");
@@ -59,25 +79,21 @@ const Home = () => {
                 const address = await signer.getAddress();
                 const network = await provider.getNetwork();
                 const blockNumber = await provider.getBlockNumber();
+                const balance = await provider.getBalance(address);
 
                 setSigner(signer);
                 setUserAddress(address);
-                setNetworkId(network.chainId.toString()); // Convert to string
+                setNetworkId(network.chainId.toString());
                 setNetworkName(network.name);
                 setBlockNumber(blockNumber);
+                setBalance(ethers.formatEther(balance));
 
                 console.log("Signer:", signer);
                 console.log("User Address:", address);
                 console.log("Network ID:", network.chainId);
                 console.log("Network Name:", network.name);
                 console.log("Block Number:", blockNumber);
-
-                if (network.chainId !== 1n) {
-                    // 1 is the chain ID for Ethereum Mainnet
-                    setIsEthereumMainnet(false);
-                } else {
-                    setIsEthereumMainnet(true);
-                }
+                console.log("Balance:", ethers.formatEther(balance));
             } else {
                 console.log("No accounts found");
             }
@@ -117,50 +133,27 @@ const Home = () => {
         }
     };
 
-    const switchToEthereumMainnet = async () => {
+    const switchNetwork = async (chainId) => {
         setNetworkSwitchInProgress(true);
         try {
+            let hexChainId;
+            if (chainId === 1) {
+                hexChainId = "0x1"; // Mainnet
+            } else if (chainId === 11155111) {
+                hexChainId = "0xaa36a7"; // Sepolia
+            }
+            console.log("Switching network to:", hexChainId);
             await provider.send("wallet_switchEthereumChain", [
-                { chainId: "0x1" },
-            ]); // 0x1 is the chain ID for Ethereum Mainnet
-            console.log("Switched to Ethereum Mainnet");
+                { chainId: hexChainId },
+            ]);
+            console.log("Switched network");
             const newProvider = new ethers.BrowserProvider(window.ethereum);
             setProvider(newProvider);
             checkConnection(newProvider);
             setNetworkSwitchInProgress(false);
         } catch (switchError) {
-            console.error("Failed to switch to Ethereum Mainnet:", switchError);
+            console.error("Failed to switch network:", switchError);
             setNetworkSwitchInProgress(false);
-        }
-    };
-
-    const fetchContractData = async () => {
-        if (!provider || !signer) {
-            console.log("Provider or signer not available");
-            alert("Please connect your wallet first.");
-            return;
-        }
-
-        const contractAddress = "0xYourSmartContractAddress";
-        const contractABI = [
-            // Replace with your contract's ABI
-        ];
-
-        try {
-            console.log("Fetching contract data...");
-            const contract = new ethers.Contract(
-                contractAddress,
-                contractABI,
-                signer
-            );
-            const data = await contract.yourMethodName(); // Replace 'yourMethodName' with the actual method
-            console.log("Contract data:", data);
-            setContractData(data);
-        } catch (error) {
-            console.error(
-                "An error occurred while fetching the contract data:",
-                error
-            );
         }
     };
 
@@ -174,13 +167,15 @@ const Home = () => {
     const containerStyle = {
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: "flex-start",
+        justifyContent: "flex-start",
         height: "100vh",
+        padding: "20px",
     };
 
     return (
         <div style={containerStyle}>
+            <h1>dex-api-test</h1>
             {!userAddress ? (
                 <button
                     style={buttonStyle}
@@ -191,39 +186,41 @@ const Home = () => {
                 </button>
             ) : (
                 <>
-                    {isEthereumMainnet ? (
-                        <>
-                            <p>Connected Address: {userAddress}</p>
-                            <p>Network ID: {networkId}</p>
-                            <p>Network Name: {networkName}</p>
-                            <p>Block Number: {blockNumber}</p>
-                            <button
-                                style={buttonStyle}
-                                onClick={fetchContractData}
-                            >
-                                Fetch Contract Data
-                            </button>
-                        </>
+                    <p>Connected Address: {userAddress}</p>
+                    <p>Network ID: {networkId}</p>
+                    <p>Network Name: {networkName}</p>
+                    <p>Block Number: {blockNumber}</p>
+                    <p>Balance: {balance} ETH</p>
+                    <div>
+                        <button
+                            style={buttonStyle}
+                            onClick={() => switchNetwork(1)}
+                            disabled={
+                                networkSwitchInProgress || networkId === "1"
+                            }
+                        >
+                            Switch to Mainnet
+                        </button>
+                        <button
+                            style={buttonStyle}
+                            onClick={() => switchNetwork(11155111)}
+                            disabled={
+                                networkSwitchInProgress ||
+                                networkId === "11155111"
+                            }
+                        >
+                            Switch to Sepolia
+                        </button>
+                    </div>
+                    {networkId === "1" ? (
+                        <MainnetComponent provider={provider} />
+                    ) : networkId === "11155111" ? (
+                        <SepoliaComponent signer={signer} />
                     ) : (
-                        <>
-                            <p>
-                                You are connected to the wrong network. Please
-                                switch to the Ethereum mainnet.
-                            </p>
-                            <button
-                                style={buttonStyle}
-                                onClick={switchToEthereumMainnet}
-                                disabled={networkSwitchInProgress}
-                            >
-                                {networkSwitchInProgress
-                                    ? "Switching..."
-                                    : "Switch to Ethereum Mainnet"}
-                            </button>
-                        </>
+                        <p>Please switch to Mainnet or Sepolia.</p>
                     )}
                 </>
             )}
-            {contractData && <pre>{JSON.stringify(contractData, null, 2)}</pre>}
         </div>
     );
 };

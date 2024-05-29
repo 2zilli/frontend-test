@@ -107,10 +107,12 @@ const MainnetComponent = ({ provider }) => {
             {poolInfo && (
                 <div>
                     <p>
-                        Token 0: {token0Symbol} Decimals: {token0Decimals}
+                        Token 0: {token0Symbol} Decimals:{" "}
+                        {token0Decimals.toString()}
                     </p>
                     <p>
-                        Token 1: {token1Symbol} Decimals: {token1Decimals}
+                        Token 1: {token1Symbol} Decimals:{" "}
+                        {token1Decimals.toString()}
                     </p>
                     <pre>{JSON.stringify(poolInfo, null, 2)}</pre>
                     {price && (

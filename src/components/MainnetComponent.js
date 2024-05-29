@@ -106,8 +106,12 @@ const MainnetComponent = ({ provider }) => {
             </button>
             {poolInfo && (
                 <div>
-                    <p>Token 0: {token0Symbol}</p>
-                    <p>Token 1: {token1Symbol}</p>
+                    <p>
+                        Token 0: {token0Symbol} Decimals: {token0Decimals}
+                    </p>
+                    <p>
+                        Token 1: {token1Symbol} Decimals: {token1Decimals}
+                    </p>
                     <pre>{JSON.stringify(poolInfo, null, 2)}</pre>
                     {price && (
                         <p>
